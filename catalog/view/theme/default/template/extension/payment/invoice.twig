@@ -1,0 +1,8 @@
+<div class="buttons">
+  <form method="POST" action="{{ confirm_url }}" id='paymentForm'>
+    <div class="pull-right">
+      <input type="submit" value="{{ button_confirm }}" id="button-confirm" class="btn btn-primary" data-loading-text="{{ text_loading }}" />
+      <input type="hidden" name="order_id" value="{{ order_id }}"/>
+    </div>
+  </form>
+</div>
