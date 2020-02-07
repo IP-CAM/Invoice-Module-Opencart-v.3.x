@@ -1,4 +1,4 @@
-<h1>Invoice Woocomerce plugin</h1>
+<h1>Invoice OpenCart plugin</h1>
 
 <h3>Установка</h3>
 
