@@ -58,6 +58,7 @@ class ControllerExtensionPaymentInvoice extends Controller
 
         $link = $this->createPayment($order_info);
         if($link == null) {
+            $this->model_checkout_order->addOrderHistory($order_id, 1, 'Invoice', true);
             $this->session->data['error'] = "Ошибка при создании заказа: Не удалось создать платеж!";
             $this->response->redirect($this->url->link("checkout/checkout"));
             return;
@@ -81,6 +82,7 @@ class ControllerExtensionPaymentInvoice extends Controller
            return "Wrong signature!";
        }
         $this->load->model('account/order');
+        $this->load->model('checkout/order');
         $order_info = $this->model_account_order->getOrder($id);
 
         if($order_info == null) {
@@ -102,18 +104,25 @@ class ControllerExtensionPaymentInvoice extends Controller
             case "error":
                 $this->error($id);
                 break;
+            case "refund":
+                $this->refund($id);
+                break;
         }
         return "OK";
     }
 
     private function pay($id)
     {
-        $this->model_checkout_order->addOrderHistory($id, "Complete", 'Invoice', true);
+        $this->model_checkout_order->addOrderHistory($id, 5, 'Оплачено через Invoice', true);
     }
 
     private function error($id)
     {
-        $this->model_checkout_order->addOrderHistory($id, "Failed", 'ошибка при оплате через UnitPay', false);
+        $this->model_checkout_order->addOrderHistory($id, 10, 'Ошибка при оплате', false);
+    }
+
+    private function refund($id) {
+        $this->model_checkout_order->addOrderHistory($id, 11, 'Оформлен возврат', false);
     }
 
     private function createPayment($order_info) {
