@@ -27,7 +27,7 @@ class ControllerExtensionPaymentInvoice extends Controller
         if($data['payment_invoice_terminal'] == null or $data['payment_invoice_terminal'] == "") {
             $terminal = $this->createTerminal($order_info);
 
-            if($terminal == null) {
+            if($terminal == null or !isset($terminal->id)) {
                 return "<h3>Произошла ошибка! Попробуйте позже</h3>";
             }
             $data['payment_invoice_terminal'] = $terminal->id;
@@ -192,6 +192,9 @@ class ControllerExtensionPaymentInvoice extends Controller
         $terminal = $this->invoiceClient->CreateTerminal($create_terminal);
         if($terminal == null) {
             return null;
+        }
+        if($terminal->error != null) {
+            throw new Exception($terminal->error);
         }
 
         $this->load->model("extension/payment/invoice");
