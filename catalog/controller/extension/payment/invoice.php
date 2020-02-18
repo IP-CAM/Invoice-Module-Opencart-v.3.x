@@ -58,44 +58,36 @@ class ControllerExtensionPaymentInvoice extends Controller
 
         $link = $this->createPayment($order_info);
         if($link == null) {
-            $this->model_checkout_order->addOrderHistory($order_id, 1, 'Invoice', true);
             $this->session->data['error'] = "Ошибка при создании заказа: Не удалось создать платеж!";
             $this->response->redirect($this->url->link("checkout/checkout"));
             return;
+        } else {
+            $this->model_checkout_order->addOrderHistory($order_id, 1, "Ожидает оплату <a href='$link'>оплатить</a>", true);
         }
-
         header("Location: ".$link);
         $this->cart->clear();
     }
 
     public function callback() {
-       if(!isset($_POST["id"])) {
-           return "Not found ID";
+        $postData = file_get_contents('php://input');
+        $notification = json_decode($postData, true);
+       if(!isset($notification["id"])) {
+           echo "ID not found";
+           return;
        }
+       $tranId = $notification['id'];
        $key = $this->config->get("payment_invoice_key");
-       $id = $_POST["order"]["id"];
-       $amount = $_POST["order"]["amount"];
-       $status = $_POST["status"];
-       $signature = $_POST["signature"];
+       $id = $notification["order"]["id"];
+       $amount = $notification["order"]["amount"];
+       $status = $notification["status"];
+       $signature = $notification["signature"];
 
-       if($signature != $this->getSignature($key,$status,$id)) {
-           return "Wrong signature!";
+       if($signature != $this->getSignature($key,$status,$tranId)) {
+           echo "Wrong signature";
+           return;
        }
         $this->load->model('account/order');
         $this->load->model('checkout/order');
-        $order_info = $this->model_account_order->getOrder($id);
-
-        if($order_info == null) {
-            return "Order not found";
-        }
-
-        $rur_order_total = $this->currency->convert($order_info['total'], $order_info['currency_code'], "RUB");
-        $out_summ = $this->currency->format($rur_order_total, "RUB", $order_info['currency_value'], FALSE);
-        $out_summ = number_format($out_summ, 2, '.', '');
-
-        if($out_summ > $amount) {
-            return "Wrong amount";
-        }
 
         switch ($status) {
             case "successful":
@@ -108,7 +100,8 @@ class ControllerExtensionPaymentInvoice extends Controller
                 $this->refund($id);
                 break;
         }
-        return "OK";
+        echo "OK";
+        return;
     }
 
     private function pay($id)
@@ -192,9 +185,6 @@ class ControllerExtensionPaymentInvoice extends Controller
         $terminal = $this->invoiceClient->CreateTerminal($create_terminal);
         if($terminal == null) {
             return null;
-        }
-        if($terminal->error != null) {
-            throw new Exception($terminal->error);
         }
 
         $this->load->model("extension/payment/invoice");
