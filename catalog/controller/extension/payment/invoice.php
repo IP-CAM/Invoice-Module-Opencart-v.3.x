@@ -86,18 +86,21 @@ class ControllerExtensionPaymentInvoice extends Controller
            echo "Wrong signature";
            return;
        }
-        $this->load->model('account/order');
         $this->load->model('checkout/order');
 
-        switch ($status) {
-            case "successful":
-                $this->pay($id);
+        switch ($notification["notification_type"]) {
+            case "pay" :
+                switch ($status) {
+                    case "successful":
+                        $this->pay($id);
+                        break;
+                    case "error":
+                        $this->error($id);
+                        break;
+                }
                 break;
-            case "error":
-                $this->error($id);
-                break;
-            case "refund":
-                $this->refund($id);
+            case "refund" :
+                $this->refund($id, $notification["amount"]);
                 break;
         }
         echo "OK";
@@ -114,8 +117,8 @@ class ControllerExtensionPaymentInvoice extends Controller
         $this->model_checkout_order->addOrderHistory($id, 10, 'Ошибка при оплате', false);
     }
 
-    private function refund($id) {
-        $this->model_checkout_order->addOrderHistory($id, 11, 'Оформлен возврат', false);
+    private function refund($id, $amount) {
+        $this->model_checkout_order->addOrderHistory($id, 11, 'Оформлен частичный возврат возврат на сумму '.$amount."р", false);
     }
 
     private function createPayment($order_info) {
