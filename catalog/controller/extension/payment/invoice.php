@@ -159,11 +159,13 @@ class ControllerExtensionPaymentInvoice extends Controller
 
         $create_payment->receipt = $receipt;
         $paymentInfo = $this->invoiceClient->CreatePayment($create_payment);
+        $error = @$paymentInfo->error;
 
-        if($paymentInfo == null or $paymentInfo->error != null) {
-            if($paymentInfo->error == 3) {
+        if($paymentInfo == null or $error != null) {
+            if($error == 3) {
                 $terminal = $this->createTerminal($order_info);
-                if($terminal == null or $terminal->error != null) {
+                $terminal_error = @$terminal->error;
+                if($terminal == null or $terminal_error != null) {
                     return null;
                 }else {
                     return $this->createPayment($order_info);
