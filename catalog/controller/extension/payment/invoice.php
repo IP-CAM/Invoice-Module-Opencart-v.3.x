@@ -28,6 +28,7 @@ class ControllerExtensionPaymentInvoice extends Controller
             $terminal = $this->createTerminal($order_info);
 
             if($terminal == null or !isset($terminal->id)) {
+                $this->log("ERROR". json_encode($terminal) . "\n");
                 return "<h3>Произошла ошибка! Попробуйте позже</h3>";
             }
             $data['payment_invoice_terminal'] = $terminal->id;
@@ -50,6 +51,7 @@ class ControllerExtensionPaymentInvoice extends Controller
         $order_id = $this->request->post["order_id"];
 
         if(!isset($this->request->post["order_id"])) {
+            $this->log("ERROR". "id not found" . "\n");
             $this->session->data['error'] = "Ошибка при создании заказа: Неверный ID заказа!";
             $this->response->redirect($this->url->link("checkout/checkout"));
             return;
@@ -71,6 +73,9 @@ class ControllerExtensionPaymentInvoice extends Controller
     public function callback() {
         $postData = file_get_contents('php://input');
         $notification = json_decode($postData, true);
+
+        $this->log("CALLBACK". $postData . "\n");
+
        if(!isset($notification["id"])) {
            echo "ID not found";
            return;
@@ -162,10 +167,12 @@ class ControllerExtensionPaymentInvoice extends Controller
         $error = @$paymentInfo->error;
 
         if($paymentInfo == null or $error != null) {
+            $this->log("ERROR". json_encode($paymentInfo) . "\n");
             if($error == 3) {
                 $terminal = $this->createTerminal($order_info);
                 $terminal_error = @$terminal->error;
                 if($terminal == null or $terminal_error != null) {
+                    $this->log("ERROR". json_encode($terminal) . "\n");
                     return null;
                 }else {
                     return $this->createPayment($order_info);
@@ -213,5 +220,11 @@ class ControllerExtensionPaymentInvoice extends Controller
 
     private function getSignature($key,$status,$id) {
         return md5($id.$status.$key);
+    }
+
+    private function log($log) {
+        $fp = fopen('invoice_payment.log', 'a+');
+        fwrite($fp, $log);
+        fclose($fp);
     }
 }
