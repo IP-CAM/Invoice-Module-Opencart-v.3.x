@@ -11,7 +11,7 @@ $_['text_invoice']          = '<a href="https://invoice.su"><img src="https://in
 
 // Entry
 $_['entry_invoice_key']        	= 'API Key';
-$_['entry_invoice_login']    	= 'Login';
+$_['entry_invoice_login']    	= 'Merchant ID';
 $_['entry_invoice_terminal']    = 'Terminal';
 $_['entry_status']              = 'Status';
 

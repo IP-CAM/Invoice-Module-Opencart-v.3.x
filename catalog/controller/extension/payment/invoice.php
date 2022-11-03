@@ -5,6 +5,7 @@ require_once "InvoiceSDK/CREATE_PAYMENT.php";
 require_once "InvoiceSDK/common/SETTINGS.php";
 require_once "InvoiceSDK/common/ORDER.php";
 require_once "InvoiceSDK/common/ITEM.php";
+require_once "InvoiceSDK/GET_TERMINAL.php";
 
 class ControllerExtensionPaymentInvoice extends Controller
 {
@@ -126,64 +127,112 @@ class ControllerExtensionPaymentInvoice extends Controller
         $this->model_checkout_order->addOrderHistory($id, 11, 'Оформлен частичный возврат возврат на сумму '.$amount."р", false);
     }
 
+    /**
+     * @return CREATE_PAYMENT
+     */
+
     private function createPayment($order_info) {
         $this->setInvoiceClient();
-
+        $this->checkOrCreateTerminal($order_info);
+       
         $this->load->model('account/order');
-        $items = $this->model_account_order->getOrderProducts($order_info["order_id"]);
-
+       
         $rur_order_total = $this->currency->convert($order_info['total'], $order_info['currency_code'], "RUB");
         $data['out_summ'] = $this->currency->format($rur_order_total, "RUB", $order_info['currency_value'], FALSE);
         $data['out_summ'] = number_format($data['out_summ'], 2, '.', '');
 
-        $create_payment = new CREATE_PAYMENT();
+        $request = new CREATE_PAYMENT();
+        $request->order = $this->getOrder($order_info["order_id"], $data["out_summ"]);
+        $request->settings = $this->getSettings($order_info);
+        $request->receipt = $this->getReceipt($order_info);
+        
+        $info = $this->invoiceClient->CreatePayment($request);
 
+        if($info == null or $info->error != null) {
+            return "/";
+        } else {
+            return $info->payment_url;
+        }
+    }
+
+    /**
+     * @return ORDER
+     */
+
+    private function getOrder($id, $sum) {
+        $order = new ORDER();
+        $order->amount = $sum;
+        $order->id = $id . "-" . md5($id);
+        $order->currency = "RUB";
+
+        return $order;
+    }
+
+    /**
+     * @return SETTINGS
+     */
+
+    private function getSettings($order_info) {
         $settings = new SETTINGS();
         $settings->terminal_id = $this->config->get("payment_invoice_terminal");
         $settings->success_url = $order_info["store_url"];
         $settings->fail_url = $order_info["store_url"];
-        $create_payment->settings = $settings;
 
-        $order = new ORDER();
-        $order->id = $order_info["order_id"];
-        $order->currency = "RUB";
-        $order->amount = $data["out_summ"];
-        $create_payment->order = $order;
+        return $settings;
+    }
 
+    /**
+     * @return ITEM
+     */
+
+    private function getReceipt($order_info) {
         $receipt = array();
+        $basket = $this->model_account_order->getOrderProducts($order_info["order_id"]);
 
-        foreach ($items as $item) {
-            $invoice_item = new ITEM();
-            $invoice_item->name = $item["name"];
-            $invoice_item->quantity = $item["quantity"];
-            $invoice_item->price = $item["price"];
-            $invoice_item->resultPrice = $item["total"];
+        foreach ($basket as $basketItem) {
+            $item = new ITEM();
+            $item->name = $basketItem["name"];
+            $item->price = $basketItem["price"];
+            $item->resultPrice = $basketItem["total"];
+            $item->quantity = $basketItem["quantity"];
 
-            array_push($receipt, $invoice_item);
+            array_push($receipt, $item);
         }
 
-        $create_payment->receipt = $receipt;
-        $paymentInfo = $this->invoiceClient->CreatePayment($create_payment);
-        $error = @$paymentInfo->error;
+        return $receipt;
+    }
 
-        if($paymentInfo == null or $error != null) {
-            $this->log("ERROR". json_encode($paymentInfo) . "\n");
-            if($error == 3) {
-                $terminal = $this->createTerminal($order_info);
-                $terminal_error = @$terminal->error;
-                if($terminal == null or $terminal_error != null) {
-                    $this->log("ERROR". json_encode($terminal) . "\n");
-                    return null;
-                }else {
-                    return $this->createPayment($order_info);
-                }
-            }else {
-                return null;
-            }
+    public function checkOrCreateTerminal($order_info) {
+        $id = $this->getTerminal();
+        if($id == null or empty($id)) {
+            return $this->createTerminal($order_info);
         } else {
-            return $paymentInfo->payment_url;
+            return $id;
         }
     }
+
+    /**
+     * @return GET_TERMINAL
+     */
+
+    public function getTerminal() {
+        $terminal = new GET_TERMINAL();
+        $terminal->alias = $this->config->get("payment_invoice_terminal");;
+        $info = $this->invoiceClient->GetTerminal($terminal);
+
+        if(isset($info->error)){
+            return null;
+        }
+        if($info->id == null || $info->id != $terminal->alias){
+            return null;
+        } else {
+            return $info->id;
+        }
+    }
+
+    /**
+     * @return CREATE_TERMINAL
+     */
 
     private function createTerminal($order_info) {
         $name = $order_info["store_name"];
@@ -191,7 +240,7 @@ class ControllerExtensionPaymentInvoice extends Controller
         $create_terminal = new CREATE_TERMINAL();
         $create_terminal->name = $name;
         $create_terminal->description = $this->config->get("config_meta_description");
-        $create_terminal->defaultPrice = 0;
+        $create_terminal->defaultPrice = 10;
         $create_terminal->type = "dynamical";
 
         $terminal = $this->invoiceClient->CreateTerminal($create_terminal);
