@@ -83,7 +83,7 @@ class ControllerExtensionPaymentInvoice extends Controller
        }
        $tranId = $notification['id'];
        $key = $this->config->get("payment_invoice_key");
-       $id = $notification["order"]["id"];
+       $id = strstr($notification["order"]["id"], "-", true);
        $amount = $notification["order"]["amount"];
        $status = $notification["status"];
        $signature = $notification["signature"];
@@ -162,7 +162,7 @@ class ControllerExtensionPaymentInvoice extends Controller
     private function getOrder($id, $sum) {
         $order = new ORDER();
         $order->amount = $sum;
-        $order->id = $id . "-" . md5($id);
+        $order->id = "$id" . "-" . bin2hex(random_bytes(5));
         $order->currency = "RUB";
 
         return $order;
