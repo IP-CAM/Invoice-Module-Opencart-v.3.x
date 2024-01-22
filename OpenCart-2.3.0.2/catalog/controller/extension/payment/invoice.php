@@ -16,25 +16,26 @@ class ControllerExtensionPaymentInvoice extends Controller
 
     public function index()
     {
-        $data['payment_invoice_login'] = $this->config->get('payment_invoice_login');
-        $data['payment_invoice_key'] = $this->config->get('payment_invoice_key');
-        $data['payment_invoice_terminal'] = $this->config->get('payment_invoice_terminal');
+        
+        $data['invoice_login'] = $this->config->get('invoice_login');
+        $data['invoice_key'] = $this->config->get('invoice_key');
+        $data['invoice_terminal'] = $this->config->get('invoice_terminal');
 
         $this->setInvoiceClient();
-
+        
         $this->load->model('checkout/order');
         $order_info = $this->model_checkout_order->getOrder($this->session->data['order_id']);
 
-        if($data['payment_invoice_terminal'] == null or $data['payment_invoice_terminal'] == "") {
+        if($data['invoice_terminal'] == null or $data['invoice_terminal'] == "") {
             $terminal = $this->createTerminal($order_info);
 
             if($terminal == null or !isset($terminal->id)) {
                 $this->log("ERROR". json_encode($terminal) . "\n");
                 return "<h3>Произошла ошибка! Попробуйте позже</h3>";
             }
-            $data['payment_invoice_terminal'] = $terminal->id;
+            $data['invoice_terminal'] = $terminal->id;
         }
-
+        
         $data['button_confirm'] = $this->language->get('button_confirm');
         $data['button_back'] = $this->language->get('button_back');
         $data['text_loading'] = $this->language->get('text_loading');
@@ -60,6 +61,7 @@ class ControllerExtensionPaymentInvoice extends Controller
         $order_info = $this->model_checkout_order->getOrder($order_id);
 
         $link = $this->createPayment($order_info);
+        
         if($link == null) {
             $this->session->data['error'] = "Ошибка при создании заказа: Не удалось создать платеж!";
             $this->response->redirect($this->url->link("checkout/checkout"));
@@ -82,7 +84,7 @@ class ControllerExtensionPaymentInvoice extends Controller
            return;
        }
        $tranId = $notification['id'];
-       $key = $this->config->get("payment_invoice_key");
+       $key = $this->config->get("invoice_key");
        $id = strstr($notification["order"]["id"], "-", true);
        $amount = $notification["order"]["amount"];
        $status = $notification["status"];
@@ -139,13 +141,13 @@ class ControllerExtensionPaymentInvoice extends Controller
        
         $rur_order_total = $this->currency->convert($order_info['total'], $order_info['currency_code'], "RUB");
         $data['out_summ'] = $this->currency->format($rur_order_total, "RUB", $order_info['currency_value'], FALSE);
-        $data['out_summ'] = number_format($data['out_summ'], 2, '.', '');
+        $data['out_summ'] = number_format($order_info['total'], 2, '.', '');
 
         $request = new CREATE_PAYMENT();
         $request->order = $this->getOrder($order_info["order_id"], $data["out_summ"]);
         $request->settings = $this->getSettings($order_info);
         $request->receipt = $this->getReceipt($order_info);
-        
+       
         $info = $this->invoiceClient->CreatePayment($request);
 
         if($info == null or $info->error != null) {
@@ -162,7 +164,7 @@ class ControllerExtensionPaymentInvoice extends Controller
     private function getOrder($id, $sum) {
         $order = new ORDER();
         $order->amount = $sum;
-        $order->id = "$id" . "-" . bin2hex(random_bytes(5));
+        $order->id = "$id" . "-" . bin2hex(openssl_random_pseudo_bytes(5));
         $order->currency = "RUB";
 
         return $order;
@@ -174,7 +176,7 @@ class ControllerExtensionPaymentInvoice extends Controller
 
     private function getSettings($order_info) {
         $settings = new SETTINGS();
-        $settings->terminal_id = $this->config->get("payment_invoice_terminal");
+        $settings->terminal_id = $this->config->get("invoice_terminal");
         $settings->success_url = $order_info["store_url"];
         $settings->fail_url = $order_info["store_url"];
 
@@ -217,7 +219,7 @@ class ControllerExtensionPaymentInvoice extends Controller
 
     public function getTerminal() {
         $terminal = new GET_TERMINAL();
-        $terminal->alias = $this->config->get("payment_invoice_terminal");;
+        $terminal->alias = $this->config->get("invoice_terminal");;
         $info = $this->invoiceClient->GetTerminal($terminal);
 
         if(isset($info->error)){
@@ -240,31 +242,32 @@ class ControllerExtensionPaymentInvoice extends Controller
         $create_terminal = new CREATE_TERMINAL();
         $create_terminal->name = $name;
         $create_terminal->description = $this->config->get("config_meta_description");
-        $create_terminal->defaultPrice = 10;
+        $create_terminal->defaultPrice = 0;
         $create_terminal->type = "dynamical";
 
         $terminal = $this->invoiceClient->CreateTerminal($create_terminal);
+        
         if($terminal == null) {
             return null;
         }
-
+        
         $this->load->model("extension/payment/invoice");
-        $this->model_extension_payment_invoice->editSetting("payment_invoice",array(
-            "payment_invoice_terminal" => $terminal->id,
-            "payment_invoice_login" => $this->config->get('payment_invoice_login'),
-            "payment_invoice_key" => $this->config->get('payment_invoice_key'),
-            'payment_invoice_status' => $this->config->get('payment_invoice_status'),
+        $this->model_extension_payment_invoice->editSetting("invoice",array(
+            "invoice_terminal" => $terminal->id,
+            "invoice_login" => $this->config->get('invoice_login'),
+            "invoice_key" => $this->config->get('invoice_key'),
+            'invoice_status' => $this->config->get('invoice_status'),
         ));
 
         return $terminal;
     }
 
     private function setInvoiceClient() {
-        $data['payment_invoice_login'] = $this->config->get('payment_invoice_login');
-        $data['payment_invoice_key'] = $this->config->get('payment_invoice_key');
-        $data['payment_invoice_terminal'] = $this->config->get('payment_invoice_terminal');
+        $data['invoice_login'] = $this->config->get('invoice_login');
+        $data['invoice_key'] = $this->config->get('invoice_key');
+        $data['invoice_terminal'] = $this->config->get('invoice_terminal');
 
-        $this->invoiceClient = new RestClient($data['payment_invoice_login'],$data['payment_invoice_key']);
+        $this->invoiceClient = new RestClient($data['invoice_login'],$data['invoice_key']);
     }
 
     private function getSignature($key,$status,$id) {

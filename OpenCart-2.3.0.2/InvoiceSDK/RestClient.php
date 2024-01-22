@@ -27,7 +27,7 @@ class RestClient
     {
         $request = $this->url . $request_type;
         $auth = base64_encode($this->login . ":" . $this->apiKey);
-
+    
         $ch = curl_init($request);
         curl_setopt($ch, CURLOPT_URL, $request);
         curl_setopt($ch, CURLOPT_POST, 1);
@@ -40,12 +40,16 @@ class RestClient
             "User-Agent: Invoice.OpenCart",
             "Accept: */*"
         ]);
-
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
 
         $response = curl_exec($ch);
-        curl_close($ch);
 
+        if ($response === false) {
+            exit(var_dump(curl_error($ch)));
+        }
+
+        curl_close($ch);
         return $response;
     }
 
@@ -66,6 +70,7 @@ class RestClient
     public function CreateTerminal(CREATE_TERMINAL $request)
     {
         $response = $this->Send("CreateTerminal", json_encode(get_object_vars($request)));
+       
         return json_decode($response);
     }
 
